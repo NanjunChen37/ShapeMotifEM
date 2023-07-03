@@ -1,0 +1,1160 @@
+---
+title: "An Introduction to the ShapeMotifEM Package"
+author: 
+- name: Nanjun Chen
+  email: nanjuchen2-c@my.cityu.edu.hk
+- name: Ka-Chun Wong
+  email: kc.w@cityu.edu.hk
+date: "2023-05-20"
+output: 
+    BiocStyle::html_document
+vignette: >
+    %\VignetteIndexEntry{An Introduction of Package}
+    %\VignetteEngine{knitr::rmarkdown}
+    %\VignetteEncoding{UTF-8} 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This R package is design for DNA shape motif discovery with multiple shape feature input. With the input of GRanges file or FASTA format file of ChIP-Seq data, users will be able to carry on DNA shape motif discovery, and visualize the shape motifs.
+
+# Load ShapeMotifEM and Biostrings
+
+```{r library, echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+# install.packages("ShapeMotifEM_0.0.1.0000.tar.gz", repos = NULL, type = "source")
+library(ShapeMotifEM)
+library(Biostrings)
+```
+
+# Table of contents
+
+## Contents overview
+
+The ShapeMotifEM package contains four main parts: 1. Data pre-processing functions, 2. Shape motif discovery functions, 3. Result processing functions, 4. Visualization methods. Additionally, an example dataset is provided for users to replicate the processes described in this document.
+
+## Data pre-processing functions
+
+The data pre-processing section includes two functions: 1. `gr_input`, 2. `fasta_input`. These functions read GRanges files or FASTA files, respectively, and process them into DNA shape data. The DNA shape data can then be used as input for the DNA shape motif discovery functions.
+
+## Shape motif discovery functions
+
+In this version, we provide 3 algorithms for DNA shape motif discovery: 1.  `SMEM`, 2. `SMEM_Gibb`s, 3. `SM_Gibbs`. These functions read the DNA shape data file and perform shape motif discovery. With the generalizability of all three models, DNA shape data that adheres to the data pre-processing rules can also be used as input, and the resulting location array of the shape motifs will be obtained.
+
+## Result processing functions
+
+These functions read the location array of DNA shape motifs. By collecting statistics and organizing the results, these functions generate the final motif location results.
+
+Corresponding to the pre-processing method, this section also contains two methods: 1. `gr_motif_merge`, 2. `fasta_motif_merge`. Besides providing the motif shape data, users who use the GRanges form input will obtain the location and genomic coordinates of each motif. Users who use the FASTA form input will obtain the location and motif sequence based on the input FASTA file.
+
+## Visualization methods
+
+In this section, users can align and visualize discovered motifs by adjusting different parameters. The `motif_visualizer` function in this section is an interactive function that allows users to adjust alignment parameters in real time and visualize the discovered motifs.
+
+## Example data
+
+The package includes a GRanges file of the A549 cell line with MAX transcription factor: `A549_MAX_gr`. This dataset is used to demonstrate the package's functions and allows users to replicate the processes in practical applications.
+
+# User Instructions
+
+## DNA Shape motif discovery with GRanges input
+
+This part is the instructions of carry on DNA shape motif discovery with GRanges file input.
+
+### Multiple features
+
+#### Get shape data with multiple shape features
+
+Firstly, we load the ChIP-Seq sequencing data of MAX transcription factors obtained from the A549 cell line, which is included in the package, as the input. This GRanges file serves as an illustrative example to demonstrate the usage of the ShapeMotifEM package.
+
+To load the example data, follow the steps below:
+
+```{r load example GRanges data}
+example_data = system.file("data", "A549_MAX_gr.RData", package = "ShapeMotifEM")
+example_gr_file = load(example_data)
+example_gr_file
+```
+
+Check the input GRanges file:
+
+```{r show example data}
+A549_MAX_gr
+```
+
+Next, function `gr_input` can be used to obtain dna shape data that meets subsequent input requirements. In addition to the input data, `gr_input` function contains the following parameters:
+
+1.  `peakLength`: This parameter determines the length of the center peak to be processed.
+
+2.  `total_peak_number`: Specifies the total number of peaks for shape motif discovery.
+
+3.  `fasta_name`: The `gr_input` function, which utilizes the included `DNAShapeR` package, generates a FASTA file based on the GRanges file. Here, you can provide a name for the FASTA file.
+
+4.  `shapeind`: Users can choose to perform shape motif discovery on either multiple shape features or a single shape feature by setting the shape index. The default value is "all". Additionally, integer from 1 to 5 correspond to the features "MGW," "HelT," "ProT," "Roll," and "EP," respectively.
+
+5.  `sort_by`: Users can sort the GRanges file according to your preference by setting the `sort_by` parameter. Options for sorting include: "score," "signalValue," "pValue," "qValue," "peak," and "none."
+
+6.  `sort_descend`: This parameter allows you to specify whether the peaks should be sorted in ascending or descending order.
+
+```{r gr_input multiple shapes, message=FALSE, warning=FALSE, results='markup'}
+
+gr_input_result = gr_input(
+  A549_MAX_gr,
+  peakLength = 100,
+  total_peak_number = 100,
+  fasta_name = "fasta.fa",
+  shapeind = "all",
+  sort_by = "signalValue",
+  sort_descend = TRUE
+)
+
+```
+
+User can check the View pre-processed GRanges file results by:
+
+```{r gr_input gr file results, collapse=TRUE}
+gr_input_result$gr_file
+```
+
+User can also check the obtained DNA shape data:
+
+```{r gr_input shape results, results='hide'}
+gr_input_result$dna_shape_data
+```
+
+An example of the shape data:
+
+```{r gr_input shape results example}
+gr_input_result$dna_shape_data[, , 1]
+```
+
+#### Run ShapeMotifEM (SMEM) algorithm
+
+Next, users can use the DNA shape data generated in the previous step for motif discovery. Here is the example of using the functions SMEM and SMEM_Gibbs.
+
+Function `SMEM` and `SMEM_Gibbs` include same parameters:
+
+1.  `DNA_shape_data`: Input DNA shape data convert by function fasta_input, gr_input, or other shape data adheres to the data pre-processing rules.
+
+2.  `filename`: Name of the output the .csv results.
+
+3.  `peakCount`: The number of peaks to retrieve per batch, default is 20.
+
+4.  `motifLength`: The length of shape motif to be discovered, default is 12.
+
+5.  `motifCount`: The number of motifs to be discovered for each replicate, default is 2.
+
+6.  `replicates`: The number of repetitions for each batch, default is 50.
+
+7.  `tolerance`: The tolerance threshold for EM and EM_Gibbs iteration, default is 0.000001.
+
+Note that increasing the number of repetitions leads to improved statistical accuracy, but it also extends the duration of the experiment. Therefore, users are encouraged to find a balance between the two factors based on their specific needs.
+
+```{r SMEM multiple features, message=TRUE, results='hide'}
+
+dna_shape_data = gr_input_result$dna_shape_data
+
+EM_result = SMEM(
+  dna_shape_data,
+  filename = "A549_MAX",
+  peakCount = 50,
+  motifLength = 12,
+  motifCount = 2,
+  replicates = 50,
+  tolerance = 1e-06
+)
+
+EM_result
+
+```
+
+<!-- Here the dimension and the top 10 rows of the result is shown as an example: -->
+
+The dimension of the `SMEM` result is as follow. 1000 refer to the results of motif on each peak, which is $motifCount \times replicates$. The number 100 refer to the 100 peak summits obtained for DNA shape motif discovery.
+
+```{r SMEM multiple features result 10 rows}
+dim(EM_result)
+```
+
+The top 10 rows of the result is shown as an example:
+
+```{r}
+EM_result[1:10,]
+```
+
+#### Run ShapeMotifEM (SMEM_Gibbs) algorithm
+
+The algorithm SMEM_Gibbs can be applied in the same manner:
+
+```{r SMEM_Gibbs multiple features, message=TRUE, results='hide'}
+
+EM_Gibbs_result = SMEM_Gibbs(
+  dna_shape_data,
+  filename = "A549_MAX",
+  peakCount = 50,
+  motifLength = 12,
+  motifCount = 2,
+  replicates = 50,
+  tolerance = 1e-06
+)
+
+EM_Gibbs_result
+```
+#### Run ShapeMotif Gibbs (SMEM_Gibbs) algorithm
+
+The generalized Gibbs method that support multiple shape features input can be used as follows:
+
+```{r SM_Gibbs multiple features, message=TRUE, results='hide'}
+
+Gibbs_result = SM_Gibbs(
+  dna_shape_data,
+  filename = "A549_MAX",
+  peakCount = 50,
+  motifLength = 12,
+  motifCount = 2,
+  replicates = 50,
+  tolerance = 1e-06
+)
+
+Gibbs_result
+```
+
+#### Merge results
+
+In the next section, for GRanges file input, the final results of each DNA shape motif can be obtained using function `gr_motif_merge`. The parameter of the function include:
+
+1.  `motif_location_array`: The motif location array output by function `SMEM` or `SMEM_Gibbs`.
+
+2.  `gr_file`: The GRanges file used to obtian the DNA shape data.
+
+3.  `motifLength`: The same motif length as used in the previous functions.
+
+4.  `filename`: The file name of the final output data frame.
+
+```{r motif merge of gr_input multiple, warning=FALSE, results='hide'}
+gr_file = gr_input_result$gr_file
+
+motif_location_array = EM_result
+
+gr_input_merge_result = gr_motif_merge(motif_location_array,
+                                         gr_file,
+                                         motifLength = 12,
+                                         filename = "A549_MAX_gr_mul")
+```
+
+The output of the function include two parts: 1. The final motif data frame, include the peak number, series number of motif on the peak, motif location on the peak summit data, motif genomic location, the motif length, the merged motif length, and the occurrence frequency of the motif during the experiment. 2. The motif shape data corresponding to the information record in the result data frame.
+
+```{r merge results multiple, results='hide'}
+gr_input_merge_result$motif_data_frame
+
+gr_input_merge_result$motif_shape_data
+```
+
+Here is an example of merged output.
+
+```{r show merge results multiple}
+gr_input_merge_result$motif_data_frame[1:10,]
+
+gr_input_merge_result$motif_shape_data[1]
+```
+
+#### Use the shape motif visualizer with method 'pearson'
+
+For the next step, the function `motif_visualizer` can be utilized to visualize the DNA shape motif. The parameter of the function include:
+
+1.  `motif_data_frame` and `motif_shape_data` obtained from the last function.
+
+2.  `motifFrequency`: Parameters used to select the most frequently occurring motif.
+
+3.  `shapeIndex`: The shape index for shape motif alignment, from 1 to 5, follow the same rule as introduced in function `gr_input`.
+
+4.  `motifLength`: The same motif length as used in the previous functions.
+
+5.  `align_method`: The function provide two method: "pearson" and "distance" to align the most similar motifs.
+
+6.  `ref_number`: The reference motif used for alignment.
+
+7.  `input_form`: 0 refers to the FASTA form input, 1 refers to the GRanges or gr from input. This parameter is detected and determined by the function itself.
+
+8.  `continue_alignment`: Conditional judgment, input by the user in practice.
+
+9.  `top_motif`: The number of motifs used for alignment, input by the user in practice.
+
+10. `threshold`: the threshold for align method 'pearson', input by the user in practice.
+
+```{r motif visualizer multiple, warning=FALSE, results='hide'}
+motif_data_frame = gr_input_merge_result$motif_data_frame
+
+motif_shape_data = gr_input_merge_result$motif_shape_data
+
+motif_vis_pearson = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = 4,
+  motifLength = 12,
+  align_method = "pearson",
+  ref_number = 1,
+  input_form = 1,
+  continue_alignment = 1,
+  top_motif = 25,
+  threshold = 0.6
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames pearson multiple}
+seq_list_set = motif_vis_pearson$align_motif_sequence
+
+align_df = motif_vis_pearson$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt
+
+area_dfm_set = align_df$motif_area_df_melt
+```
+
+#### visualize shape motifs
+
+The output results of `motif_visualizer` provide the necessary information needed for visualization. Users can visualize the results based on this information. The following part is a visual code example.
+
+```{r Package used to make plot, message=FALSE, warning=FALSE}
+# Load the needed packages for making plots
+library(ggplot2)
+library('ggseqlogo')
+library(colorspace)
+library(ggalt)
+library(knitr)
+library(biomaRt)
+library(svglite)
+library(magick)
+```
+
+The color palette to display and distinguish between different shape features.
+
+```{r get colourboard}
+# The shape used to conduct alignment
+
+motif_colourboard <- function(shapeIndex) {
+  colourboard = c()
+  
+  colourboard[[1]]  = c("#9E1892", "#CC2AA5", "#E659A8")
+  colourboard[[2]]  = c("#005EA1", "#0087BA", "#00A6BB")
+  colourboard[[3]] = c("#E17100", "#EF9300", "#F5B300")
+  colourboard[[4]]  = c("#2B8238", "#419F44", "#6DB667")
+  colourboard[[5]]    = c("#C11437", "#EB2C31", "#FB604F")
+  
+  colourset = colourboard[[shapeIndex]]
+  colour1 = colourset[1]
+  colour2 = colourset[2]
+  colour3 = colourset[3]
+  
+  return(list(colour1, colour2, colour3))
+  
+}
+
+```
+
+Functions to get the base and PFM of sequences included in `seq_list_set`.
+
+```{r plot}
+
+letterMatrix <- function(input) {
+  # Ensure kmers are the same length characters(ggseqlogo)
+  seq.len = sapply(input, nchar) 
+  num_pos = seq.len[1] 
+  if (!all(seq.len == num_pos)) {
+    stop('Sequences in alignment must have identical lengths')
+  }
+  # Construct matrix of letters(ggseqlogo)
+  split = unlist(sapply(input, function(seq) {strsplit(seq, '')})) 
+  t(matrix(split, seq.len, length(split) / num_pos))
+}
+
+make_ppm <- function(seqs, ppm = TRUE, seq_type = "dna") {
+  # seqs: A vector of strings, each string is a DNA or RNA sequence
+  # ppm: Whether to return PPM, default is PPM, else return PFM
+  # seq_type: Sequence type, can be "dna" of "rna"
+  letter_mat = letterMatrix(seqs) 
+  # Get namespace(ggseqlogo)
+  if (seq_type == "dna") {
+    namespace = c("A", "T", "G", "C")
+  } else if (seq_type == "rna") {
+    namespace = c("A", "U", "G", "C")
+  } else {
+    stop('Wrong seq_type! Must be one of "dna" and "rna".')
+  }
+  # Construct PWM(ggseqlogo)
+  pfm_mat = apply(letter_mat, 2, function(pos.data) {
+    # Get frequencies 
+    t = table(pos.data) 
+    # Match to aa(ggseqlogo)
+    ind = match(namespace, names(t)) #
+    # Create column(ggseqlogo)
+    col = t[ind] #
+    col[is.na(col)] = 0
+    names(col) = namespace
+    if (ppm) {
+      col = col / sum(col)
+    }
+    col
+  })
+  num_pos = nchar(seqs[1])
+  colnames(pfm_mat) = 1:num_pos
+  pfm_mat
+}
+
+```
+
+Function for plotting all aligned motifs. By calling this function, the motif discovery results can be clearly visualized.
+
+```{r Motif visualization}
+
+get_plot <- function(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex) {
+  
+  motif_colour = motif_colourboard(shapeIndex)
+  colour1 = motif_colour[[1]]
+  colour2 = motif_colour[[2]]
+  colour3 = motif_colour[[3]]
+
+  plineAll = pareaAll = plogoAll = c()
+  
+  for (a in 1:length(shape_dfm_set)){
+    
+    # The detailed line plot for each motif
+    pline = ggplot(data = shape_dfm_set[[a]], aes(x=factor(label), y=value, group=Legend, color=Legend, shape=Legend)) +
+      geom_point() +
+      geom_line(size=0.75) +
+      annotate("text", x=-Inf, y=Inf, label=a, hjust=-1, vjust=2) +
+      xlab("") +
+      ylab("Feature Value") +
+      theme_bw() +
+      theme(
+        panel.grid.major = element_line(colour=NA),
+        panel.background = element_rect(fill="transparent", colour=NA),
+        plot.background = element_rect(fill="transparent", colour=NA),
+        panel.grid.minor = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_line(color="lightgrey", linetype=2, size=0.25),
+        panel.grid.major.x = element_line(color="lightgrey", linetype=2, size=0.5),
+        panel.grid.major.y = element_line(color="lightgrey", linetype=2, size=0.5),
+        legend.position = "bottom",
+        legend.margin = margin(t=-22, r=0, b=1, l=0), 
+        legend.title = element_text(size=9),
+        legend.text = element_text(size=8), 
+        legend.box = "horizontal",
+        legend.spacing = unit(0, "cm")
+      ) +
+      theme(axis.text.x = element_text(size=13)) +
+      theme(axis.text.y = element_text(size=13)) +
+      theme(axis.title.y = element_text(vjust=1.5, size=15)) +
+      guides(color = guide_legend(nrow = 2, title.hjust = 0, title.vjust = 0.9, direction = "horizontal")
+      )
+    
+    plineAll[[a]] = pline
+    
+    # The general area plot for each alignment
+    parea = ggplot(data = area_dfm_set[[a]],aes(x = label, y = round(meanv),2))+
+      geom_ribbon(aes(x=label, ymax=maxv, ymin=minv), fill=colour3, alpha=.25) +
+      geom_line(aes(y = maxv), colour = colour2, size = .3, alpha=.8) +
+      geom_line(aes(y = minv), colour = colour2, size = .3, alpha=.8)+
+      geom_line(aes(y = meanv),colour = colour1, size = .8, alpha=.8)+
+      # annotate("text", x = -Inf, y = Inf, label = a, hjust = -1, vjust = 2) +
+      xlab(NULL) + 
+      ylab("Feature Value") +
+      theme_bw() + 
+      theme(
+        panel.grid.major = element_line(colour = NA),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_line(color="lightgrey",linetype=2, size = .25),
+        panel.grid.major.x = element_line(color="lightgrey",linetype=2, size = .5),
+        panel.grid.major.y=element_line(color="lightgrey",linetype=2, size = .5),
+      ) +
+      scale_x_continuous(breaks=area_dfm_set[[a]]$label, labels = area_dfm_set[[a]]$label) +
+      theme(axis.text.x = element_text(size = 13)) +
+      theme(axis.text.y = element_text(size = 13)) +
+      theme(axis.title.y=element_text(vjust=1.5, size=15))
+    
+    pareaAll[[a]] = parea
+    
+    # The sequence logo of each alignment
+    seqs <- seq_list_set[[a]]
+    ppm <- make_ppm(seqs, ppm=TRUE)
+    pfm <- make_ppm(seqs, ppm=FALSE) 
+    
+    plogo = ggplot() + 
+      geom_logo(pfm) + 
+      ylim(0,2) + 
+      theme(
+        panel.background = element_rect(fill = "transparent"), 
+        plot.background = element_rect(fill = "transparent", color = NA), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.background = element_rect(fill = "transparent"), 
+        legend.box.background = element_rect(fill = "transparent") 
+      ) +
+      theme(axis.text = 25) +
+      theme(axis.title.y=element_text(vjust=1.5, size=30))+
+      theme_logo()
+    
+    plogoAll[[a]] = plogo
+  }
+  
+  return(list("logo_plot" = plogoAll, "area_plot" = pareaAll, "line_plot" = plineAll))
+}
+```
+
+The `motif_visualization` also output the alignment score and the number of motifs remaining after filtering by the pearson method. By comparing the results, the user can see which shape feature appears most frequently among all the motifs participating in the alignment.
+
+```{r plot of GRanges input multiple pearson, collapse=TRUE}
+
+# Check the alignment score
+motif_vis_pearson$align_score
+
+# Check the number of elements of each alignment
+unlist(lapply(seq_list_set, length))
+
+```
+
+Get the plot of alignment result:
+
+```{r get motif plots pearson, warning=FALSE}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 4)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result multiple pearson, warning=FALSE, collapse=TRUE}
+length(plot$logo_plot)
+alignindex = 4
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+#### Use the shape motif visualizer with method 'distance'
+
+The second method is "distance", this method does not have the advantage of "pearson" to filter motifs, but it can show the whole picture of each alignment:
+
+```{r motif visualizer, warning=FALSE, message=FALSE, results='hide'}
+motif_data_frame = gr_input_merge_result$motif_data_frame
+
+motif_shape_data = gr_input_merge_result$motif_shape_data
+
+motif_vis_dist = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = 4,
+  motifLength = 12,
+  align_method = "distance",
+  ref_number = 1,
+  input_form = 1,
+  continue_alignment = 1,
+  top_motif = 25,
+  threshold = 0.7
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames distance}
+seq_list_set = motif_vis_dist$align_motif_sequence
+
+align_df = motif_vis_dist$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt
+
+area_dfm_set = align_df$motif_area_df_melt
+```
+
+#### visualize shape motifs
+
+Get the plot of alignment result:
+
+```{r get motif plots distance}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 4)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result distance multiple, warning=FALSE}
+alignindex = 4
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+#### Use the shape motif visualizer with all shape features
+
+We also provide the alignment method for multiple features:
+
+```{r motif visualizer all features, warning=FALSE, message=FALSE, results='hide'}
+motif_data_frame = gr_input_merge_result$motif_data_frame
+
+motif_shape_data = gr_input_merge_result$motif_shape_data
+
+motif_vis_all = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = "all",
+  motifLength = 12,
+  align_method = "pearson",
+  ref_number = 1,
+  input_form = 1,
+  continue_alignment = 1,
+  top_motif = 25,
+  threshold = 0.4
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames all features}
+seq_list_set = motif_vis_all$align_motif_sequence
+
+align_df = motif_vis_all$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt[[1]]
+
+area_dfm_set = align_df$motif_area_df_melt[[1]]
+```
+
+#### visualize shape motifs
+
+Get the plot of alignment result:
+
+```{r get motif plots all features}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 1)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result all features, warning=FALSE}
+alignindex = 4
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+### Single shape feature
+
+The package also supports motif discovery on single shape features.
+
+#### Get shape data with single shape features
+
+By specifying a certain shape feature (e.g. 1 to 5), the function `gr_input` can generate the shape data of the feature.
+
+```{r gr_input single shape, message=FALSE, warning=FALSE, results='markup'}
+
+gr_input_result = gr_input(
+  A549_MAX_gr,
+  peakLength = 100,
+  total_peak_number = 100,
+  fasta_name = "fasta.fa",
+  shapeind = 4,
+  sort_by = "signalValue",
+  sort_descend = TRUE
+)
+
+```
+
+User can check the View pre-processed GRanges file results by:
+
+```{r gr_input gr file results single, collapse=TRUE}
+gr_input_result$gr_file
+```
+
+User can check the obtained DNA shape data with single shape feature:
+
+```{r gr_input shape results single, results='hide'}
+gr_input_result$dna_shape_data
+```
+
+Here the DNA shape data of the top 10 peaks is shown:
+
+```{r gr_input shape results single example}
+gr_input_result$dna_shape_data[, , 1:10]
+```
+
+#### Run ShapeMotifEM (SMEM) algorithm
+
+Next, users can use the DNA shape data generated in the previous step for motif discovery.
+
+```{r SMEM single feature, message=TRUE, results='hide'}
+
+dna_shape_data = gr_input_result$dna_shape_data
+
+EM_result = SMEM(
+  dna_shape_data,
+  filename = "A549_MAX_gr_single",
+  peakCount = 50,
+  motifLength = 12,
+  motifCount = 2,
+  replicates = 50,
+  tolerance = 1e-06
+)
+
+EM_result
+
+```
+
+The top 10 rows of the result is shown as an example:
+
+```{r}
+EM_result[1:10,]
+```
+
+#### Merge results
+
+Use function `gr_motif_merge` to process the results.
+
+```{r motif merge of gr_input single, warning=FALSE, message=FALSE, results='hide'}
+
+gr_file = gr_input_result$gr_file
+
+motif_location_array = EM_result
+
+gr_input_merge_result = gr_motif_merge(motif_location_array,
+                                         gr_file,
+                                         motifLength = 12,
+                                         filename = "A549_MAX_gr_single")
+
+```
+
+The output form of this function is the same as in the multi-feature case. All shape features are output in case other shape features at the same location will be analyzed.
+
+```{r show merge results single, results='hide'}
+gr_input_merge_result$motif_data_frame
+
+gr_input_merge_result$motif_shape_data
+```
+
+Here is an example of merged output.
+
+```{r show merge results multiple single}
+gr_input_merge_result$motif_data_frame[1:10,]
+
+gr_input_merge_result$motif_shape_data[1]
+```
+
+#### Use the shape motif visualizer
+
+Use function `motif_visualizer` with method "pearson" to visualize the DNA shape motif. Note that the `shapeIndex` here needs to be the same as the input in `gr_input`.
+
+```{r motif visualizer single, warning=FALSE, message=FALSE, results='hide'}
+motif_data_frame = gr_input_merge_result$motif_data_frame
+
+motif_shape_data = gr_input_merge_result$motif_shape_data
+
+motif_vis_pearson = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = 4,
+  motifLength = 12,
+  align_method = "pearson",
+  ref_number = 1,
+  input_form = 1,
+  continue_alignment = 1,
+  top_motif = 25,
+  threshold = 0.6
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames pearson single}
+seq_list_set = motif_vis_pearson$align_motif_sequence
+
+align_df = motif_vis_pearson$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt
+
+area_dfm_set = align_df$motif_area_df_melt
+```
+
+#### visualize shape motifs
+
+Check the motif alignment score and records:
+
+```{r plot of GRanges input single pearson}
+
+# Check the alignment score
+motif_vis_pearson$align_score
+
+# Check the number of elements of each alignment
+unlist(lapply(seq_list_set, length))
+
+```
+
+Get the plot of alignment result:
+
+```{r get single motif plots pearson}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 4)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result single pearson, warning=FALSE}
+alignindex = 4
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+#### Use the shape motif visualizer
+
+Use function `motif_visualizer` with method "distance" to visualize the DNA shape motif. Similarly, the `shapeIndex` here needs to be the same as the input in `gr_input`.
+
+```{r motif visualizer distance single, warning=FALSE, message=FALSE, results='hide'}
+motif_data_frame = gr_input_merge_result$motif_data_frame
+
+motif_shape_data = gr_input_merge_result$motif_shape_data
+
+motif_vis_dist = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = 4,
+  motifLength = 12,
+  align_method = "distance",
+  ref_number = 1,
+  input_form = 1,
+  continue_alignment = 1,
+  top_motif = 25,
+  threshold = 0.6
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames distance single}
+seq_list_set = motif_vis_dist$align_motif_sequence
+
+align_df = motif_vis_dist$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt
+
+area_dfm_set = align_df$motif_area_df_melt
+```
+
+#### visualize shape motifs
+
+Get the plot of alignment result:
+
+```{r get motif plots distance single}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 4)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result distance single, warning=FALSE}
+alignindex = 4
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+## DNA Shape Motif Discovery with FASTA Input
+
+This part is the instructions of carry on DNA shape motif discovery with GRanges file input.
+
+### Multiple Features
+
+#### Get shape data with multiple shape features
+
+When using the function `gr_input` in the previous part, the function generates a FASTA file: "fasta.fa" in the working directory for us. Here we will use this file for demonstration.
+
+Noted that each peak summit sequence in the FASTA must be the same length. In addition, due to the calculation rules of DNA shape data, the actual peak length used in the discovery is equal to the length of the peak sequence minus 4 (i.e. sequncen length = 104, then peak length = 100).
+
+```{r}
+length(readDNAStringSet(paste0("fasta.fa")))
+```
+
+Sequence of the top 5 peaks in the "fasta.fa" file:
+
+```{r}
+readDNAStringSet(paste0("fasta.fa"))[1:5]
+```
+
+function `fasta_input` can be used to obtain dna shape data that meets subsequent input requirements. In addition to the input data, `fasta_input` function contains the following parameters:
+
+1.  `fasta_file`: Path to the FASTA file containing the DNA sequence.
+
+2.  `shapeind`: Users can choose to perform shape motif discovery on either multiple shape features or a single shape feature by setting the shape index. The default value is "all". Additionally, integer from 1 to 5 correspond to the features "MGW," "HelT," "ProT," "Roll," and "EP," respectively.
+
+```{r fasta_input multiple shapes, message=FALSE, warning=FALSE, results='markup'}
+
+fasta_file = "fasta.fa"
+
+fasta_input_result = fasta_input(fasta_file, shapeind = "all")
+
+```
+
+```{r fasta_input shape results, results='hide'}
+
+fasta_input_result
+
+```
+
+An example of the shape data:
+
+```{r fasta_input shape results example}
+
+fasta_input_result[, , 1]
+
+```
+
+#### Run ShapeMotifEM (SMEM) algorithm
+
+Run the algorithm SMEM:
+
+```{r SMEM multiple features fasta, message=TRUE, results='hide'}
+
+dna_shape_data = fasta_input_result
+
+EM_result = SMEM(
+  dna_shape_data,
+  filename = "A549_MAX_fasta_mul",
+  peakCount = 50,
+  motifLength = 12,
+  motifCount = 2,
+  replicates = 50,
+  tolerance = 1e-06
+)
+
+EM_result
+
+```
+
+The dimension of the result and the top 10 rows of the result:
+
+```{r SMEM multiple features result 10 rows fasta}
+dim(EM_result)
+EM_result[1:10,]
+```
+
+#### Run ShapeMotifEM (SMEM_Gibbs) algorithm
+
+The algorithm SMEM_Gibbs can be applied in the same manner:
+
+```{r SMEM_Gibbs multiple features fasta, message=TRUE, results='hide'}
+
+EM_Gibbs_result = SMEM_Gibbs(
+  dna_shape_data,
+  filename = "A549_MAX_fasta_mul",
+  peakCount = 50,
+  motifLength = 12,
+  motifCount = 2,
+  replicates = 50,
+  tolerance = 1e-06
+)
+
+```
+
+#### Merge results
+
+To merge the results with FASTA form input, function `fasta_motif_merge` can be used. The parameter of the function include:
+
+1.  `motif_location_array`: The motif location array output by function `SMEM` or `SMEM_Gibbs`.
+
+2.  `fasta_file`: Path to the FASTA file containing the DNA sequence.
+
+3.  `motifLength`: The same motif length as used in the previous functions.
+
+4.  `filename`: The file name of the final output data frame.
+
+```{r motif merge of gr_input multiple fasta, warning=FALSE, message=FALSE, results='hide'}
+
+motif_location_array = EM_result
+
+fasta_input_merge_result = fasta_motif_merge(motif_location_array,
+                                             fasta_file,
+                                             motifLength = 12,
+                                             filename = "A549_MAX_fasta_mul")
+
+```
+
+The output of `fasta_motif_merge` has the same structure as the output of `gr_motif_merge`. However, the `motif_data_frame` here records the specific position of each motif on its corresponding sequence, as well as the sequence corresponding to each motif, and the frequency of occurrence
+
+```{r merge results multiple fasta, results='hide'}
+fasta_input_merge_result$motif_data_frame
+
+fasta_input_merge_result$motif_shape_data
+```
+
+An output example of the function `fasta_motif_merge`:
+
+```{r show merge results multiple fasta, collapse=TRUE}
+fasta_input_merge_result$motif_data_frame[1:10,]
+
+fasta_input_merge_result$motif_shape_data[1]
+```
+
+#### Use the shape motif visualizer with method 'pearson'
+
+Use `motif_visualizer` with method "pearson" for motif alignment and visualization. Here the parameter `input_form` is 0, refers to FASTA form input. This parameter is detected and determined by the function itself in practice.
+
+```{r motif visualizer pearson multiple fasta, warning=FALSE, message=FALSE, results='hide'}
+motif_data_frame = fasta_input_merge_result$motif_data_frame
+
+motif_shape_data = fasta_input_merge_result$motif_shape_data
+
+motif_vis_pearson = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = 4,
+  motifLength = 12,
+  align_method = "pearson",
+  ref_number = 1,
+  input_form = 0, ###
+  continue_alignment = 1,
+  top_motif = 20,
+  threshold = 0.5
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames pearson multiple fasta}
+seq_list_set = motif_vis_pearson$align_motif_sequence
+
+align_df = motif_vis_pearson$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt
+
+area_dfm_set = align_df$motif_area_df_melt
+```
+
+Check the motif alignment score and records:
+
+```{r plot of GRanges input multiple pearson fasta}
+
+# Check the alignment score
+motif_vis_pearson$align_score
+
+# Check the number of elements of each alignment
+unlist(lapply(seq_list_set, length))
+
+```
+
+#### visualize shape motifs
+
+Get the plot of alignment result:
+
+```{r get motif plots pearson fasta, warning=FALSE}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 4)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result multiple pearson fasta, warning=FALSE}
+alignindex = 5
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+#### Use the shape motif visualizer with method 'distance'
+
+Use `motif_visualizer` with method "distance" for motif alignment and visualization.
+
+```{r motif visualizer distance multiple fasta, warning=FALSE, message=FALSE, results='hide'}
+motif_data_frame = fasta_input_merge_result$motif_data_frame
+
+motif_shape_data = fasta_input_merge_result$motif_shape_data
+
+motif_vis_dist = motif_visualizer(
+  motif_data_frame,
+  motif_shape_data,
+  motifFrequency = 0.5,
+  shapeIndex = 4,
+  motifLength = 12,
+  align_method = "distance",
+  ref_number = 1,
+  input_form = 0, ###
+  continue_alignment = 1,
+  top_motif = 20,
+  threshold = 0.6
+)
+
+```
+
+The contents of `motif_visualizer` output results.
+
+```{r get visualization data frames distance multiple fasta}
+seq_list_set = motif_vis_dist$align_motif_sequence
+
+align_df = motif_vis_dist$align_motif_dataframe
+
+shape_dfm_set = align_df$motif_shape_df_melt
+
+area_dfm_set = align_df$motif_area_df_melt
+```
+
+#### visualize shape motifs
+
+Get the plot of alignment result:
+
+```{r get motif plots distance fasta, warning=FALSE}
+
+plot = get_plot(shape_dfm_set, area_dfm_set, seq_list_set, shapeIndex = 4)
+
+```
+
+View one of the results of the motif alignment:
+
+```{r get single result multiple distance fasta, warning=FALSE}
+alignindex = 5
+print(plot$logo_plot[[alignindex]])
+print(plot$area_plot[[alignindex]])
+print(plot$line_plot[[alignindex]])
+```
+
+### Single shape feature
+
+To conduct DNA shape motif discovery on single shape feature, the process is similar to the description above. The experimental process will not be described here because we have shown a very detailed process before.
+
+
+# Reference
+
+3. Lawrence M, Huber W, Pagès H, Aboyoun P, Carlson M, Gentleman R, Morgan M, Carey V (2013). Software for Computing and Annotating Genomic Ranges. *PLoS Computational Biology*, 9. [DOI: 10.1371/journal.pcbi.1003118](https://doi.org/10.1371/journal.pcbi.1003118), [Link to article](http://www.ploscompbiol.org/article/info%3Adoi%2F10.1371%2Fjournal.pcbi.1003118).
+
+2. Chiu T, Comoglio F, Zhou T, Yang L, Paro R, Rohs R (2016). DNAshapeR: an R/Bioconductor package for DNA shape prediction and feature encoding. *Bioinformatics*, 32, 1211-1213. [DOI: 10.1093/bioinformatics/btv735](https://doi.org/10.1093/bioinformatics/btv735).
+
+3. Wagih, Omar. ggseqlogo: a versatile R package for drawing sequence logos. *Bioinformatics* 33, no. 22 (2017): 3645-3647. [DOI: 10.1093/bioinformatics/btx469](https://doi.org/10.1093/bioinformatics/btx469) PMID: 29036507.
+
+# Session Information
+
+All of the output in this vignette was produced under the following conditions:
+
+```{r}
+sessionInfo()
+```
+
+

@@ -1,0 +1,32 @@
+Package: ShapeMotifEM
+Title: What the Package Does (One Line, Title Case)
+Version: 0.0.1.0000
+Depends: R (>= 3.5.0)
+Authors@R: c(
+    person("Nanjun", "Chen", email = "nanjuchen2-c@my.cityu.edu.hk", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-1432-3495")),
+    person("Ka-Chun", "Wong", email = "kc.w@cityu.edu.hk", role = "aut"))
+Description: This package is developed for DNA shape motif discovery in the R language environment. The whole package contains the following modules: 1. Take GRange file or DNA sequence as input and convert it into DNA shape data. 2. Use three methods, EM, EM(Gibbs), and Gibbs for DNA shape motif discovery. 3. Merge and count the motif information on each peak. 4. Align DNA shape motifs to extract and visualize DNA shape motifs.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports:
+    Biostrings,
+    DNAshapeR,
+    GenomicRanges,
+    BSgenome.Hsapiens.UCSC.hg19,
+    reshape2,
+    stats,
+    utils
+Suggests:
+    ggplot2,
+    colorspace,
+    ggseqlogo
+Data:
+    data/A549_MAX_gr.RData
+
+
+
+
+
