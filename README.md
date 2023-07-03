@@ -7,4 +7,5 @@
  library(devtools)
  install_github(repo = "NanjunChen37/ShapeMotifEM", build_vignettes = TRUE)
 ```
-For a detailed package introduction and package vignette, please visit https://github.com/NanjunChen37/ShapeMotifEM/.
+- For detailed package information, please visit https://github.com/NanjunChen37/ShapeMotifEM/. 
+- User instructions can be found at https://github.com/NanjunChen37/ShapeMotifEM/blob/main/vignettes/rmd.html.
