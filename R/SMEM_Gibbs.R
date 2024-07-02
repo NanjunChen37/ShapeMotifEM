@@ -455,7 +455,7 @@ SMEM_Gibbs <- function(dna_shape_data, filename = "file", peakCount = 20, motifL
         # Apply EM algorithm for motif discovery
         possibleError <- tryCatch({
           start_time <- Sys.time()
-          results = EM_mod(experimentData, peakCount, timeSeriesMotifCount, motifLength, tol)
+          results = EMgibbs_mod(experimentData, peakCount, timeSeriesMotifCount, motifLength, tol)
           timeTaken = as.numeric(Sys.time()) - as.numeric(start_time)
           evaluated = evaluateMatrices(timeSeriesMotifs, results$finalTimeSeriesMotifs)
 
@@ -562,7 +562,7 @@ SMEM_Gibbs <- function(dna_shape_data, filename = "file", peakCount = 20, motifL
         # Apply EM algorithm for motif discovery
         possibleError <- tryCatch({
           start_time <- Sys.time()
-          results = EM_single(experimentData, peakCount, timeSeriesMotifCount, motifLength, tol)
+          results = EMgibbs_single(experimentData, peakCount, timeSeriesMotifCount, motifLength, tol)
           timeTaken = as.numeric(Sys.time()) - as.numeric(start_time)
           evaluated = evaluateMatrices(timeSeriesMotifs, results$finalTimeSeriesMotifs)
 
